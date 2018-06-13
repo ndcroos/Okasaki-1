@@ -7,13 +7,14 @@ template<class T>
 class Susp
 {
 public:
+    // 
     Susp(std::function<std::unique_ptr<T>()> const & f)
         : _f(f)
     {}
     T const & force() const
     {
         // There probably is a better, lock-free, 
-        // implememntation of this singleton
+        // implementation of this singleton
         std::lock_guard<std::mutex> lck(_mtx);
         if (!_memo)
             _memo = _f();
@@ -36,6 +37,7 @@ class Stream;
 // Cell is a unique owner of an Item
 // Item is a shared owner of Stream
 
+// Nested class to hide implementation details.
 template<class T>
 class Cell
 {
@@ -97,14 +99,20 @@ public:
     Stream(FutCell<T> f)
         : _lazyCell(std::make_shared<Susp<const Cell<T>>>(f))
     {}
+    
+    //
     bool isEmpty() const
     {
         return !_lazyCell;
     }
+    
+    // Get head.
     T get() const
     {
         return _lazyCell->force().val();
     }
+    
+    // Get rest of stream.
     Stream<T> popped_front() const
     {
         return _lazyCell->force().popped_front();
@@ -120,6 +128,8 @@ public:
             return Stream();
         auto v = get();
         auto t = popped_front();
+        
+        // [=] is the capture list for the lambda expression.
         return Stream([=]()
         {
             return std::unique_ptr<Cell<T>>(new Cell<T>(v, t.take(n - 1)));
@@ -155,13 +165,14 @@ private:
     std::shared_ptr < Susp<const Cell<T>>> _lazyCell;
 };
 
-
+// Concatenate two streams. Implementation of mappend method.
 template<class T>
 Stream<T> concat(Stream<T> const & lft
                , Stream<T> const & rgt)
 {
     if (lft.isEmpty())
         return rgt;
+    // 
     return Stream<T>([=]()
     {
         T val = lft.get();
